@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title><$mt:Var name="page_title" remove_html="1"$></title>
+</head>
+<body>
+<mt:block trim_space="2">
+<mt:Include file="includes/header-like-mt.tmpl" _include_value="Set from include tag." setvar="header_block">
+<mt:var name="header_block">
+
+<mt:setvars name="hash_vars">
+    url     =http://www.example.com/
+    title   =Page Example
+</mt:setvars>
+
+<mt:if test="( $page_title == 'JAML Example Page' and $cms_title == 'CMS' )">
+<p><mt:ldelim>TEST OK<mt:rdelim></p>
+</mt:if>
+
+<mt:block indent="4"><p>json1 : <mt:var name="hash_vars" to_json="1"></p></mt:block>
+
+<mt:block strip_linefeeds="1" json2vars="json">
+{
+    "text":"JSON Value"
+}
+</mt:block>
+
+<mt:block indent="4"><p>json2 : <mt:gethashvar name="json" key="text"></p></mt:block>
+
+<p>ppap_loop[1] =&gt; <mt:var name="ppap_loop[1]"></p>
+
+<mt:For var="x" from="5" to="10" glue="," strip_linefeeds="1">
+  <mt:If name="__first__"><p>This is my first time through!</p></mt:If>
+  now x = <$mt:Var name="x"$>
+</mt:For>
+
+<mt:setvars>
+    _banner_link   =http://www.example.com/
+    _banner_desc   =That is <b>description</b>
+</mt:setvars>
+<p>math : 4+5=<mt:math equation="x + y" x="4" y="5"></p>
+
+<$mt:_banner_desc regex_replace="'/that/i','This'" escape="html" upper_case="1"$>
+
+<mt:setvarblock name="_setvarblock_value">
+  setvarblock_value =&gt; <$mt:Var name="page_title" remove_html="1"$>
+</mt:setvarblock>
+
+<mt:setvar name="trim_text" value="1234567890">
+<p>trim text : <mt:var name="trim_text" trim_to="6+..."></p>
+
+<mt:if name="_setvarblock_value"><p>setvarblock : (<mt:var name="_setvarblock_value">)</p></mt:if>
+
+<mt:block replace="'Ignore','Display'"><p>Ignore Block</p></mt:block>
+
+<mt:ignore>Ignore Block</mt:ignore>
+
+<mt:nocache>
+===<mt:Date>
+</mt:nocache>
+
+<mt:setvartemplate name="setvartemplatedate">
+<mt:Date>
+</mt:setvartemplate>
+
+
+((<mt:var name="setvartemplatedate">))
+
+<br><br><mt:literal escape="html">
+<p><mt:Is in literal></p>
+</mt:literal>
+
+<p>assign name =&gt; <mt:assign var="name" value="Bob"> <mt:var name="name"></p>
+
+<h2><mt:getvar name="mobile_os_title" escape="html"></h2>
+
+<mt:ignore>or <mt:mobile_os_title></mt:ignore>
+
+<mt:Loop name="mobile_os_loop" sort_by="value,numeric,reverse">
+<mt:if name="__first__">
+  <ul>
+</mt:if>
+    <li class="<mt:if name="__odd__">odd<mt:else>even</mt:if>"><mt:var name="__key__"> : <mt:var name="__value__" escape="html"></li>
+<mt:if name="__last__">
+  </ul>
+</mt:if>
+</mt:Loop>
+
+<mt:if name="request.param" setvar="params">
+<h2>Request Parameter</h2>
+  <p>request.param:<mt:var name="request.param" escape="html"></p>
+</mt:if>
+
+<mt:var name="params">
+
+<h2><mt:getVar name="cms_title" escape="html"></h2>
+
+<mt:Loop name="cms_loop">
+<mt:if name="__first__">
+  <ul>
+</mt:if>
+    <li class="<mt:if name="__odd__">odd<mt:else>even</mt:if>"> <mt:var name="name"> : <mt:var name="company" escape="html"></li>
+<mt:if name="__last__">
+  </ul>
+</mt:if>
+</mt:Loop>
+
+<h3><mt:var name="ppap_title" escape="html" setvar="new_ppap_title"><mt:var name="new_ppap_title"></h3>
+
+<mt:Unless name="ppap_loop">
+  <p>No PPAP found.</p>
+</mt:Unless>
+
+<mt:if name="ppap_loop">
+
+
+pppppppppppppppppppppppppapppppp
+<mt:Loop name="ppap_loop" setvar="ppap_list">
+<mt:if name="__first__">
+  <ul>
+</mt:if>
+    <li class="<mt:if name="__odd__">odd<mt:else>even</mt:if>">(<mt:var name="__counter__">) <mt:var name="__value__" escape="html"></li>
+<mt:if name="__last__">
+  </ul>
+</mt:if>
+</mt:Loop>
+<mt:var name="ppap_list">
+</mt:if>
+
+<mt:if component="JAMLPluginHelloWorld">
+<h4><mt:var name="plugin_title" escape="html"></h4>
+<p><mt:Hello value="World!"></p>
+<mt:ppap glue=", " strip_linefeeds="1">
+<mt:if name="__counter__" eq="1">Plugin provides this loop. </mt:if>[<mt:var name="__counter__">]<mt:var name="__value__">
+</mt:ppap>
+</mt:if>
+<mt:pluginsample>
+</mt:block>
+</body>
+</html>

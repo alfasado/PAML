@@ -1,0 +1,13 @@
+{"tags":
+    {
+        "function":{
+            "hello":"plugin_hello"
+        },
+        "block":{
+            "ppap":"plugin_ppap"
+        },
+        "modifier":{
+            "add":"plugin_add"
+        }
+    }
+}
