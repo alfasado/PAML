@@ -189,7 +189,7 @@ Translate phrase\. See =&gt; \./locale/ja\.json
 
 ### ldelim
 
-Output left\_delimiter\(Default '\}\}'\)\.
+Output left\_delimiter\(Default '{{'\)\.
 
 ### rdelim
 
