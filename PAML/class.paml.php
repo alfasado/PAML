@@ -931,8 +931,9 @@ class PAML {
         } else {
             if ( isset( $vars[ $args['name'] ] ) ) $v = $vars[ $args['name'] ];
         }
-        if ( isset( $v ) && $v ) {
-            unset( $args['name'], $args['this_tag'] );
+        unset( $args['name'], $args['this_tag'] );
+        if ( ( isset( $v ) && $v ) || !empty( $args ) ) {
+            $v = !isset( $v ) ? '' : $v;
             if ( empty( $args ) ) return $true;
             elseif (is_array( $v ) && !empty( $v ) ) return $true;
             elseif( isset( $args['eq'] ) ) return $v ==$args['eq'] ? $true : $false;
