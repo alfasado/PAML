@@ -391,7 +391,7 @@ class PAML {
  * Get plugin component.
  *
  * @param  string $name    : Plugin class name.
-   @return object $obj     : Plugin class object.
+ * @return object $obj     : Plugin class object.
  */
     function component ( $name ) {
         if ( isset( $this->components[ strtolower( $name ) ] ) )
