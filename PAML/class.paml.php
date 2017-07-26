@@ -116,7 +116,7 @@ class PAML {
       'modifier'    => ['escape' ,'setvar', 'format_ts', 'zero_pad', 'trim_to', 'eval',
                         'strip_linefeeds', 'sprintf', 'encode_js', 'truncate', 'wrap',
                         'trim_space', 'regex_replace', 'setvartemplate', 'replace',
-                        'to_json', 'from_json', 'nocache'],
+                        'to_json', 'from_json', 'nocache', 'split', 'join'],
       'function'    => ['getvar', 'trans', 'setvar', 'property', 'ldelim', 'include',
                         'rdelim', 'fetch', 'var', 'date', 'assign', 'count'],
       'include'     => ['include', 'includeblock', 'extends'] ];
@@ -125,7 +125,7 @@ class PAML {
  */
     public    $modifier_funcs = [
       'lower_case'  => 'strtolower', 'upper_case' => 'strtoupper', 'trim' => 'trim',
-      'ltrim'       => 'ltrim',  'remove_html'=> 'strip_tags', 'rtrim'=> 'rtrim',
+      'ltrim'       => 'ltrim',  'remove_html' => 'strip_tags', 'rtrim' => 'rtrim',
       'nl2br'       => 'nl2br', 'base64_encode' => 'base64_encode' ];
 /**
  * $callbacks: Array of Callbacks.
@@ -443,61 +443,56 @@ class PAML {
         $caching = $this->caching;
         if (!$src && ( $path = realpath( $path ) ) && !file_exists( $path ) ) return;
         if ( $_SERVER['REQUEST_METHOD'] !== 'GET' ) $this->caching = $caching = false;
-        if ( $caching && !$force_compile )
-      { // Page cache.
-        $this->init_cache( $this->cache_driver );
-        if (!$cache_id )
-       {
-        $req = isset( $_SERVER['HTTP_X_REWRITE_URL'] )
-        ? $_SERVER['HTTP_X_REWRITE_URL'] :
-        isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : $path;
-        $req = $_SERVER['HTTP_HOST'] . $_SERVER['SERVER_PORT'] . $req;
-        $cache_id = 'c__' . md5( $req . ':' . $path );
-       }
-        $this->cache_id = $cache_id;
-        $this->cache_path = $this->get_cache( $cache_id, $this->cache_ttl );
-        if ( $this->out !== null ) {
-            $out = $this->out;
-            if ( $disp ) echo $out;
-            unset( $this->out, $this->meta );
-            return $out;
+        if ( $caching && !$force_compile ) { // Page cache.
+            $this->init_cache( $this->cache_driver );
+            if (!$cache_id ) {
+                $req = isset( $_SERVER['HTTP_X_REWRITE_URL'] )
+                ? $_SERVER['HTTP_X_REWRITE_URL'] :
+                isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : $path;
+                $req = $_SERVER['HTTP_HOST'] . $_SERVER['SERVER_PORT'] . $req;
+                $cache_id = 'c__' . md5( $req . ':' . $path );
+            }
+            $this->cache_id = $cache_id;
+            $this->cache_path = $this->get_cache( $cache_id, $this->cache_ttl );
+            if ( $this->out !== null ) {
+                $out = $this->out;
+                if ( $disp ) echo $out;
+                unset( $this->out, $this->meta );
+                return $out;
+            }
         }
-      }
         $compile_key = '';
         $compile_path = '';
         $this->restore_vars = $this->vars;
-        if ( $path )
-      {
-        $this->include_paths[ dirname( $path ) ] = true;
-        $this->template_paths[ $path ] = filemtime( $path );
-        $this->template_file = $path;
-        $compile_key = md5( $path );
-      }
+        if ( $path ) {
+            $this->include_paths[ dirname( $path ) ] = true;
+            $this->template_paths[ $path ] = filemtime( $path );
+            $this->template_file = $path;
+            $compile_key = md5( $path );
+        }
         $this->init();
         $this->re_compile = false;
-        if (!$force_compile )
-      { // Compile cache.
-        $compile_path = $this->get_cache( $compile_key );
-        if ( $this->out !== null ) {
-            if ( $this->nocache && $caching )
-          {
-            $this->literal_vars = [];
-            $this->re_compile = true;
-          } else {
-            if (!$caching )
-            {
-            $out = $this->out;
-            if (!empty( $this->callbacks['output_filter'] ) )
-                $out = $this->call_filter( $out, 'output_filter' );
-            if ( $disp ) echo $out;
-            unset( $this->out, $this->meta, $this->old_params, $this->old_vars,
-                   $this->template_paths, $this->literal_vars, $this->template_file );
-            return $out;
+        if (!$force_compile ) { // Compile cache.
+            $compile_path = $this->get_cache( $compile_key );
+            if ( $this->out !== null ) {
+                if ( $this->nocache && $caching ) {
+                    $this->literal_vars = [];
+                    $this->re_compile = true;
+                } else {
+                    if (!$caching ) {
+                        $out = $this->out;
+                        if (!empty( $this->callbacks['output_filter'] ) )
+                            $out = $this->call_filter( $out, 'output_filter' );
+                        if ( $disp ) echo $out;
+                        unset( $this->out, $this->meta, $this->old_params,
+                               $this->old_vars, $this->template_paths,
+                               $this->literal_vars, $this->template_file );
+                        return $out;
+                    }
+                    return $this->finish( null, $disp, $this->callbacks );
+                }
             }
-            return $this->finish( null, $disp, $this->callbacks );
-          }
         }
-      }
         $this->literal_vars = [];
         $this->id = $this->magic();
         $this->compile_path = $compile_path;
@@ -1028,11 +1023,12 @@ class PAML {
 
     function function_trans ( $args, $ctx ) {
         $phrase = ! isset( $args['phrase'] ) ? '' : $args['phrase'];
+        $lang = isset( $args['language'] ) ? $args['language'] : $ctx->language;
         if (!$phrase ) return;
         $component = isset( $args['component'] )
                    ? $ctx->component( $args['component'] ) : $ctx->default_component;
         if (! $component ) $component = $ctx;
-        if ( ( $lang = $ctx->language ) && $component ) {
+        if ( $lang && $component ) {
             $dict = isset( $component->dictionary ) ? $component->dictionary : null;
             if ( ( empty( $dict ) || !isset ( $component->dictionary[ $lang ] ) )
             && $path = $component->path ) {
@@ -1045,8 +1041,8 @@ class PAML {
             }
         }
         if ( $component && ( $dict = $component->dictionary )
-            && isset( $dict[ $ctx->language ] )
-            && ( $dict = $dict[ $ctx->language ] ) )
+            && isset( $dict[ $lang ] )
+            && ( $dict = $dict[ $lang ] ) )
             $phrase = isset( $dict[ $phrase ] ) ? $dict[ $phrase ] : $phrase;
         if ( $phrase && ( $params = isset( $args['params'] )
             ? $args['params'] : '' ) ) return ! is_array( $params )
@@ -1084,6 +1080,15 @@ class PAML {
 
     function modifier_setvar ( $str, $arg, $ctx ) {
         $ctx->vars[ $arg ] = $str;
+    }
+
+    function modifier_split ( $str, $arg, $ctx ) {
+        $arr = explode( $arg, $str );
+        return $arr;
+    }
+
+    function modifier_join ( $arr, $arg, $ctx ) {
+        return is_array( $arr )? join( $arg, $arr ) : $arr;
     }
 
     function modifier_format_ts ( $date, $format ) {
