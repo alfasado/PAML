@@ -1915,7 +1915,7 @@ class PAML {
     }
 
     function _eval ( $out ) {
-        ob_start();eval( '?>' . $out . '<?' ); $out = ob_get_clean();
+        ob_start();eval( '?>' . $out ); $out = ob_get_clean();
         if ( $err = error_get_last() )
         $this->errorHandler( $err['type'], $err['message'], $err['file'], $err['line'] );
         return $out;
