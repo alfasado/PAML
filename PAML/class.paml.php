@@ -17,6 +17,7 @@ if (! defined( 'PAMLDIR' ) ) {
 if (! defined( 'EP' ) ) {
     define( 'EP', '?>' . PHP_EOL );
 }
+
 /**
  * PAMLVSN = Compile format version.
  */
@@ -45,6 +46,7 @@ class PAML {
     public    $cache_dir;
     public    $compile_dir;
     public    $logging       = false;
+    public    $log_path;
     public    $csv_delimiter = ':';
     public    $csv_enclosure = "'";
     public    $plugin_compat = 'smarty_';
@@ -95,7 +97,7 @@ class PAML {
  */
     public    $cache_driver  = null;
     public    $plugin_order  = 0; // 0=asc, 1=desc
-    protected $components    = [];
+    public    $components    = [];
     protected $all_tags      = [];
     protected $ids           = [];
     protected $old_vars      = [];
@@ -112,14 +114,16 @@ class PAML {
       'block'       => ['block', 'loop', 'foreach', 'for','section', 'literal'],
       'block_once'  => ['ignore', 'setvars', 'capture', 'setvarblock',
                         'assignvars', 'setvartemplate', 'nocache', 'isinchild'],
-      'conditional' => ['else', 'elseif', 'if', 'unless', 'ifgetvar', 'elseifgetvar'],
+      'conditional' => ['else', 'elseif', 'if', 'unless', 'ifgetvar', 'elseifgetvar',
+                        'ifinarray'],
       'modifier'    => ['escape' ,'setvar', 'format_ts', 'zero_pad', 'trim_to', 'eval',
                         'strip_linefeeds', 'sprintf', 'encode_js', 'truncate', 'wrap',
                         'trim_space', 'regex_replace', 'setvartemplate', 'replace',
-                        'to_json', 'from_json', 'nocache', 'split', 'join'],
+                        'to_json', 'from_json', 'nocache', 'split', 'join', 'format_size'],
       'function'    => ['getvar', 'trans', 'setvar', 'property', 'ldelim', 'include',
-                        'rdelim', 'fetch', 'var', 'date', 'assign', 'count'],
+                        'rdelim', 'fetch', 'var', 'date', 'assign', 'count', 'vardump'],
       'include'     => ['include', 'includeblock', 'extends'] ];
+
 /**
  * $modifier_funcs: Mappings of modifier and PHP functions.
  */
@@ -127,6 +131,7 @@ class PAML {
       'lower_case'  => 'strtolower', 'upper_case' => 'strtoupper', 'trim' => 'trim',
       'ltrim'       => 'ltrim',  'remove_html' => 'strip_tags', 'rtrim' => 'rtrim',
       'nl2br'       => 'nl2br', 'base64_encode' => 'base64_encode' ];
+
 /**
  * $callbacks: Array of Callbacks.
  */
@@ -173,12 +178,11 @@ class PAML {
             $this->include_paths[ dirname( $f ) ] = true;
         if (!$this->force_compile && !$this->caching )
             $this->init_cache( $this->cache_driver );
-        if ( $this->use_plugin )
-      {
-        if ( ( $plugin_d = PAMLDIR . 'plugins' ) && is_dir( $plugin_d ) )
-            $this->plugin_paths[] = $plugin_d;
-        $this->init_plugins();
-      }
+        if ( $this->use_plugin ) {
+            if ( ( $plugin_d = PAMLDIR . 'plugins' ) && is_dir( $plugin_d ) )
+                $this->plugin_paths[] = $plugin_d;
+            $this->init_plugins();
+        }
         if ( $this->ldelim && $this->rdelim )
             $this->tag_block = [ $this->ldelim, $this->rdelim ];
         $this->inited = true;
@@ -194,21 +198,20 @@ class PAML {
             foreach ( $items as $plugin ) {
                 if ( strpos( $plugin, '.' ) === 0 ) continue;
                 $plugin = $dir . DS . $plugin;
-                if ( is_dir( $plugin ) ) {
-                    $plugins = scandir( $plugin, $this->plugin_order );
-                    foreach ( $plugins as $f ) {
-                        if ( ( $_plugin = $plugin . DS . $f ) && ( is_file( $_plugin ) )
-                          && ( pathinfo( $_plugin )['extension'] === 'php' ) ) {
-                            if (!include( $_plugin ) )
-                                trigger_error( "Plugin '{$f}' load failed!" );
-                            if ( preg_match ("/^class\.(.*?)\.php$/", $f, $mts ) ) {
-                                if (!class_exists( $mts[1] ) ) continue;
-                                $obj = new $mts[1]();
-                                $registry = property_exists( $obj, 'registry' )
-                                          ? $obj->registry : [];
-                                $this->register_component(
-                                    $obj, dirname( $_plugin ), $registry );
-                            }
+                if (! is_dir( $plugin ) ) continue;
+                $plugins = scandir( $plugin, $this->plugin_order );
+                foreach ( $plugins as $f ) {
+                    if ( ( $_plugin = $plugin . DS . $f ) && ( is_file( $_plugin ) )
+                      && ( pathinfo( $_plugin )['extension'] === 'php' ) ) {
+                        if (!include( $_plugin ) )
+                            trigger_error( "Plugin '{$f}' load failed!" );
+                        if ( preg_match ("/^class\.(.*?)\.php$/", $f, $mts ) ) {
+                            if (!class_exists( $mts[1] ) ) continue;
+                            $obj = new $mts[1]();
+                            $registry = property_exists( $obj, 'registry' )
+                                      ? $obj->registry : [];
+                            $this->register_component(
+                                $obj, dirname( $_plugin ), $registry );
                         }
                     }
                 }
@@ -497,7 +500,8 @@ class PAML {
         $this->id = $this->magic();
         $this->compile_path = $compile_path;
         $this->compile_key = $compile_key;
-        $content = ( $src ) ? $src : file_get_contents( $path );
+        $content = ( $src ) ? $src : $path &&
+            is_readable( $path ) ? file_get_contents( $path ) : '';
         if ( $this->use_plugin && !$this->functions ) $this->init_functions();
         $this->cache_includes = [];
         return $this->compile( $content, $disp, null, null, $params );
@@ -626,13 +630,12 @@ class PAML {
                 $v = isset( $vars[ $v ] ) ? $vars[ $v ] : '';
                 if ( isset( $idx ) ) {
                     $args[ $k ] = isset( $v[ $idx ] ) ? $v[ $idx ] : '';
-                    if ( strpos( $idx ,'$' ) === 0 )
-                  {
-                    $idx = ltrim( $idx, '$' );
-                    $idx = isset( $vars[ $idx ] ) ? $vars[ $idx ] : '';
-                    if ( is_array( $v ) && isset( $v[ $idx ] ) )
-                        $args[ $k ] = ['__array__' => $v[ $idx ] ];
-                  }
+                    if ( strpos( $idx ,'$' ) === 0 ) {
+                        $idx = ltrim( $idx, '$' );
+                        $idx = isset( $vars[ $idx ] ) ? $vars[ $idx ] : '';
+                        if ( is_array( $v ) && isset( $v[ $idx ] ) )
+                            $args[ $k ] = ['__array__' => $v[ $idx ] ];
+                    }
                 } else {
                     $args[ $k ] = $this->setup_args( $v );
                 }
@@ -965,6 +968,14 @@ class PAML {
             $this->vars[ $args['name'] ] ? true : false );
     }
 
+    function conditional_ifinarray ( $args, $content, $ctx, $repeat, $counter ) {
+        $value = $args['value'];
+        $array = isset( $args['array'] ) ? $args['array'] : $args['name'];
+        if ( is_string( $array ) ) $array = $ctx->get_any( $array );
+        if (! is_array( $array ) ) return false;
+        return in_array( $value, $array ) ? true : false;
+    }
+
     function function_var ( $args, $ctx ) {
         if (!isset( $args['name'] ) ) return;
         if ( isset( $args['value'] ) ) return $ctx->function_setvar( $args, $ctx );
@@ -987,6 +998,18 @@ class PAML {
         if (!$f = $ctx->get_template_path( $f ) ) return '';
         if (!$incl = file_get_contents( $f ) ) return '';
         return $ctx->build( $incl );
+    }
+
+    function function_vardump ( $args, $ctx ) {
+        $vars = ['vars' => $ctx->vars, 'local_vars' => $ctx->local_vars ];
+        ob_start();
+        var_dump( $vars );
+        $result = ob_get_clean();
+        if (isset( $args['preformat'] ) ) {
+            $result = htmlspecialchars( $result );
+            $result = "<pre>{$result}</pre>";
+        }
+        return $result;
     }
 
     function function_property ( $args, $ctx ) {
@@ -1174,6 +1197,21 @@ class PAML {
         return json_encode( $v );
     }
 
+    function modifier_format_size ( $size, $precision, $ctx ) {
+        $size = (int) $size;
+        $precision = (int) $precision;
+        if ( $size >= 1073741824 ) {
+            $size = round( $size / 1073741824, $precision ) . 'GB';
+        } else if ( $size >= 1048576 ) {
+            $size = round( $size / 1048576, $precision ) . 'MB';
+        } else if ( $size >= 1024 ) {
+            $size = round( $size / 1024, $precision ) . 'KB';
+        } else {
+            $size .= 'Byte';
+        }
+        return $size;
+    }
+
     function modifier_eval ( $str, $arg, $ctx ) {
         return ( $arg ) ? $ctx->build( $str ) : $str;
     }
@@ -1255,14 +1293,14 @@ class PAML {
  * @param   array $params: Array or object for loop.
  */
     function set_loop_vars ( $cnt, $params ) {
-        $this->local_vars[ '__first__' ] = $cnt === 0;
-        $this->local_vars[ '__last__' ] = !isset( $params[ $cnt + 1 ] );
+        $this->local_vars[ '__first__' ]  = $cnt === 0;
+        $this->local_vars[ '__last__' ]   = !isset( $params[ $cnt + 1 ] );
         $even = $cnt % 2;
-        $this->local_vars[ '__even__' ] = $even;
-        $this->local_vars[ '__odd__' ] = !$even;
-        $this->local_vars[ '__index__' ] = $cnt;
-        $this->local_vars[ '__counter__' ] = $cnt + 1;
-        if ( $cnt===0 ) $this->local_vars[ '__total__' ] = count( $params );
+        $this->local_vars[ '__even__' ]   = $even;
+        $this->local_vars[ '__odd__' ]    = !$even;
+        $this->local_vars[ '__index__' ]  = $cnt;
+        $this->local_vars[ '__counter__' ]= $cnt + 1;
+        if ( $cnt === 0 ) $this->local_vars[ '__total__' ] = count( $params );
     }
 
     function parse_csv ( $s ) {
