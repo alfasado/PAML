@@ -13,14 +13,14 @@ class PAMLCache {
     protected $ctx;
     protected $_compiled = '_compiled';
     protected $_cache    = '_cache';
-    protected $_prefix = 'paml__';
-    protected $_driver;
+    public    $_prefix = 'paml__';
+    public    $_driver;
 
     function __construct ( $ctx, $config = array() ) {
         foreach ( $config as $key => $value ) $this->$key = $value;
         if (! $this->driver ) return;
         $driver = $this->driver;
-        $class_file = DIR
+        $class_file = __DIR__ . DS 
             . 'cachedriver.' . strtolower( $driver ) . '.php';
         if ( file_exists( $class_file ) ) {
             require_once( $class_file );
@@ -38,14 +38,19 @@ class PAMLCache {
         return $this->_driver->get( $this->_prefix . $key, $ttl, $comp );
     }
 
+    function getAllKeys () {
+        return $this->_driver->getAllKeys();
+    }
+
     function set ( $key, $data, $ttl = null ) {
         if (! $this->_driver ) return false;
         return $this->_driver->set( $this->_prefix . $key, $data, $ttl );
     }
 
-    function delete ( $key ) {
+    function delete ( $key, $no_prefix = false ) {
         if (! $this->_driver ) return false;
-        return $this->_driver->set( $this->_prefix . $key );
+        return $no_prefix ? $this->_driver->delete( $key )
+                          : $this->_driver->delete( $this->_prefix . $key );
     }
 
     function flush ( $ttl = null ) {

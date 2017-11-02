@@ -39,6 +39,10 @@ class PAMLCacheMemcached extends PAMLCache {
         return null;
     }
 
+    function getAllKeys () {
+        return $this->instance->getAllKeys();
+    }
+
     function set ( $key, $data, $ttl = null ) {
         $this->instance->set( $key, array( time(), $data ) );
         if ( $ttl ) {
@@ -47,7 +51,7 @@ class PAMLCacheMemcached extends PAMLCache {
         }
     }
 
-    function delete ( $key ) {
+    function delete ( $key, $no_prefix = false ) {
         $this->instance->delete( $key );
     }
 
